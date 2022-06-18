@@ -11,136 +11,170 @@ import requests
 
 load_dotenv()
 
-"""
-    Direct browser to login page, inputs given username and password.
-"""
-def login():
-    email = os.environ.get("EMAIL")
-    password = os.environ.get("PASSWORD")
-    emailButton = driver.find_element(By.NAME, "email")
-    emailButton.click()
-
-    # Input login details
-    try:
-        form = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "form"))
-        )
-        # Get email, password input fields
-        inputFields = form.find_elements(By.TAG_NAME, "input")
-
-        # Input credentials and submit
-        inputFields[0].send_keys(email)
-        inputFields[1].send_keys(password)
-        
-        form.submit()
-
-    except Exception as e:
-        print(e)
-
-"""
-    Navigates to given site name to access its settings.
-    @param sitename - string indicating site name in Netlify
-"""
-def navigateToFunctionUsage(sitename):
-    try:
-        siteLink = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.LINK_TEXT, sitename))
-        )
-        driver.get("https://app.netlify.com/sites/{}/settings/functions".format(sitename))
-    except Exception as e:
-        print("Error navigating to site")
-        print(e)
-
-
-"""
-    Extracts the current usage of the site.
-"""
-# Reference: https://stackoverflow.com/questions/29772457/webdriver-select-element-that-has-before
-        #          : https://www.lambdatest.com/blog/handling-pseudo-elements-in-css-with-selenium/
-        #          : https://selenium-python.readthedocs.io/waits.html
-def extractFunctionUsage():
-    try:
-        section_overview = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "section-overview"))
-        )
-        
-        timeframeElement = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "usage"))
-        )
-
-        usage = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".fit.subdued"))
-        )
-
-        # Implicit wait for content to load
-        driver.implicitly_wait(4)
-        
-        # Get usages
-        usageElements = section_overview.find_elements(By.CSS_SELECTOR, ".fit.subdued")
-        
-        # Last updated
-        headerInfoElements = section_overview.find_elements(By.CLASS_NAME, "table-header")
-        lastUpdatedElements = headerInfoElements[0].find_elements(By.TAG_NAME, "div")
-
-        currentPlan = lastUpdatedElements[0].text
-        timeframe = timeframeElement.text
-        currentRequests = usageElements[0].text.split("\n")[0]
-        currentRunTime = usageElements[1].text.split("\n")[0]
-        
-        # Display information
-        print("Last updated: {}".format(currentPlan))
-        print("Date Range: {}".format(timeframe))
-        print("Current Requests: {}".format(currentRequests))
-        print("Current Runtime: {}".format(currentRunTime))
-
-        usageInfo = {
-            "currentPlan": currentPlan,
-            "timeframe": timeframe,
-            "currentRequests": currentRequests,
-            "currentRunTime": currentRunTime
+class NetlifyTracker:
+    def __init__(self, email, password, sitenames, webhook_url):
+        self.email = email
+        self.password = password
+        self.sitenames = sitenames
+        self.webhook_url = webhook_url
+        options = webdriver.ChromeOptions()
+        options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        self.driver = webdriver.Chrome(service = Service(ChromeDriverManager().install()), options=options)
+        self.data = {
+            "usages": []
         }
 
-        return usageInfo
-        
-    except Exception as e:
-        print("Error extracting function usage")
-        print(e)
+    """
+        Direct browser to login page, inputs given username and password.
+    """
+    def login(self):
+        # Go to base URL
+        self.driver.get("https://app.netlify.com")
 
-# Setup Chrome webdriver
-sitename = os.environ.get("SITENAME")
-webhook_url = os.environ.get("WEBHOOK_URL")
-options = webdriver.ChromeOptions()
-options.add_experimental_option("excludeSwitches", ["enable-logging"])
-driver = webdriver.Chrome(service = Service(ChromeDriverManager().install()), options=options)
+        emailButton = self.driver.find_element(By.NAME, "email")
+        emailButton.click()
 
-# Go to base URL
-driver.get("https://app.netlify.com")
+        # Input login details
+        try:
+            form = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "form"))
+            )
+            # Get email, password input fields
+            inputFields = form.find_elements(By.TAG_NAME, "input")
 
-# Check if not yet logged in
-try:
-    loginHeader = driver.find_element(By.CLASS_NAME, "page-header")
+            # Input credentials and submit
+            inputFields[0].send_keys(self.email)
+            inputFields[1].send_keys(self.password)
+            
+            form.submit()
 
-    # Login first
-    login()
+        except Exception as e:
+            print(e)
+
+    """
+        Navigates to given site name to access its settings.
+        @param sitename - string indicating site name in Netlify
+    """
+    def navigateToFunctionUsage(self, sitename, isFirstIter):
+        try:
+            print("Navigating to {}".format(sitename))
+            # Wait for login to finish
+            if isFirstIter:
+                siteLink = WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.LINK_TEXT, sitename))
+                )
+            self.driver.get("https://app.netlify.com/sites/{}/settings/functions".format(sitename))
+        except Exception as e:
+            print("Error navigating to site")
+            print(e)
+
+
+    """
+        Extracts the current usage of the site.
+    """
+    # Reference: https://stackoverflow.com/questions/29772457/webdriver-select-element-that-has-before
+    #          : https://www.lambdatest.com/blog/handling-pseudo-elements-in-css-with-selenium/
+    #          : https://selenium-python.readthedocs.io/waits.html
+    def extractFunctionUsage(self, sitename):
+        try:
+            section_overview = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.ID, "section-overview"))
+            )
+            
+            timeframeElement = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.ID, "usage"))
+            )
+
+            usage = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".fit.subdued"))
+            )
+
+            # Implicit wait for content to load
+            self.driver.implicitly_wait(4)
+            
+            # Get usages
+            usageElements = section_overview.find_elements(By.CSS_SELECTOR, ".fit.subdued")
+            
+            # Last updated
+            headerInfoElements = section_overview.find_elements(By.CLASS_NAME, "table-header")
+            lastUpdatedElements = headerInfoElements[0].find_elements(By.TAG_NAME, "div")
+
+            currentPlan = lastUpdatedElements[0].text
+            timeframe = timeframeElement.text
+            currentRequests = usageElements[0].text.split("\n")[0]
+            currentRunTime = usageElements[1].text.split("\n")[0]
+            
+            # Display information
+            print("Last updated: {}".format(currentPlan))
+            print("Date Range: {}".format(timeframe))
+            print("Current Requests: {}".format(currentRequests))
+            print("Current Runtime: {}".format(currentRunTime))
+
+            usageInfo = {
+                "sitename": sitename,
+                "currentPlan": currentPlan,
+                "timeframe": timeframe,
+                "currentRequests": currentRequests,
+                "currentRunTime": currentRunTime
+            }
+
+            return usageInfo
+            
+        except Exception as e:
+            print("Error extracting function usage")
+            print(e)
+
+    """
+        Main runner function for class. 
+        Used to traverse all the sites listed in sitenames
+    """
+    def track(self):
+        self.login()
+
+        for i in range(len(self.sitenames)):
+            isFirstIter = True if i == 0 else False
+            self.navigateToFunctionUsage(self.sitenames[i], isFirstIter)
+
+            usage = self.extractFunctionUsage(self.sitenames[i])
+            
+            self.data["usages"].append(usage)
+
+        print("Raw payload:")
+        print(self.data["usages"])
+        for usage in self.data["usages"]:
+            print(usage)
+
+
+def main():
+    # Initialize NetlifyTracker
+    sitenames = ["staging-dlsuuxsoc", "dlsuuxsoc"]
+    webhook_url = os.environ.get("WEBHOOK_URL")
+    email = os.environ.get("EMAIL")
+    password = os.environ.get("PASSWORD")
+
+    tracker = NetlifyTracker(email, password, sitenames, webhook_url)
+
+    tracker.track()
     
-    # Navigate to function usage of specific site/repo
-    navigateToFunctionUsage(sitename)
 
-    # Extract usage
-    usageInfo = extractFunctionUsage()
-    usageInfo["site"] = sitename
+    # Check if not yet logged in
+    # try:
+        
+    #     # Generate POST request
+    #     try:
+    #         response = requests.post(url = webhook_url.encode(), data = usageInfo)
+    #         print(response.status_code)
+    #         print(response.raw)
+    #     except Exception as e:
+    #         print("Failed to send POST request")
+    #         print(e)
 
-    # Generate POST request
-    try:
-        response = requests.post(url = webhook_url.encode(), data = usageInfo)
-        print(response.status_code)
-        print(response.raw)
-    except Exception as e:
-        print("Failed to send POST request")
-        print(e)
+    #     driver.quit()
 
-    driver.quit()
+    # except Exception as e:
+    #     print("App not found")
+    #     print(e)
 
-except Exception as e:
-    print("App not found")
-    print(e)
+if __name__ == "__main__":
+    main()
+
