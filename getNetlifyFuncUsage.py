@@ -70,7 +70,8 @@ class NetlifyTracker:
 
 
     """
-        Extracts the current usage of the site.
+        Extracts the current usage of the given site.
+        @param sitename - string name of the site
     """
     # Reference: https://stackoverflow.com/questions/29772457/webdriver-select-element-that-has-before
     #          : https://www.lambdatest.com/blog/handling-pseudo-elements-in-css-with-selenium/
@@ -102,20 +103,20 @@ class NetlifyTracker:
             currentPlan = lastUpdatedElements[0].text
             timeframe = timeframeElement.text
             currentRequests = usageElements[0].text.split("\n")[0]
-            currentRunTime = usageElements[1].text.split("\n")[0]
+            currentRuntime = usageElements[1].text.split("\n")[0]
             
             # Display information
             print("Last updated: {}".format(currentPlan))
             print("Date Range: {}".format(timeframe))
             print("Current Requests: {}".format(currentRequests))
-            print("Current Runtime: {}".format(currentRunTime))
+            print("Current Runtime: {}".format(currentRuntime))
 
             usageInfo = {
                 "sitename": sitename,
                 "currentPlan": currentPlan,
                 "timeframe": timeframe,
                 "currentRequests": currentRequests,
-                "currentRunTime": currentRunTime
+                "currentRuntime": currentRuntime
             }
 
             return usageInfo
@@ -127,8 +128,9 @@ class NetlifyTracker:
     """
         Main runner function for class. 
         Used to traverse all the sites listed in sitenames
+        @param sendToWebhook - boolean to determine if data collected will be sent to webhook
     """
-    def track(self):
+    def track(self, sendToWebhook):
         self.login()
 
         for i in range(len(self.sitenames)):
@@ -141,9 +143,18 @@ class NetlifyTracker:
 
         print("Raw payload:")
         print(self.data["usages"])
-        for usage in self.data["usages"]:
-            print(usage)
+        
+        if sendToWebhook:
+            # Generate POST request
+            try:
+                response = requests.post(url = self.webhook_url.encode(), json = self.data)
+                print(response.status_code)
+                print(response.raw)
+            except Exception as e:
+                print("Failed to send POST request")
+                print(e)
 
+        self.driver.quit()
 
 def main():
     # Initialize NetlifyTracker
@@ -154,27 +165,8 @@ def main():
 
     tracker = NetlifyTracker(email, password, sitenames, webhook_url)
 
-    tracker.track()
+    tracker.track(sendToWebhook = True)
     
-
-    # Check if not yet logged in
-    # try:
-        
-    #     # Generate POST request
-    #     try:
-    #         response = requests.post(url = webhook_url.encode(), data = usageInfo)
-    #         print(response.status_code)
-    #         print(response.raw)
-    #     except Exception as e:
-    #         print("Failed to send POST request")
-    #         print(e)
-
-    #     driver.quit()
-
-    # except Exception as e:
-    #     print("App not found")
-    #     print(e)
-
 if __name__ == "__main__":
     main()
 
