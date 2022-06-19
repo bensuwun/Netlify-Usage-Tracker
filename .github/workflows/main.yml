@@ -1,8 +1,8 @@
-name: Run Script
+name: Track-Usage
     
 on:
   schedule:
-    - cron: "24 1 * * *" #runs at 00:00 UTC everyday
+    - cron: "40 1 * * *" #runs at 01:40 UTC everyday
 
 jobs:
   build:
