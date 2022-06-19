@@ -2,7 +2,7 @@ name: Track-Usage
     
 on:
   schedule:
-    - cron: '*/17 * * * *' #runs at 01:40 UTC everyday
+    - cron: '* 12 * * *' #runs at 12:00 UTC everyday
 
 jobs:
   build:
