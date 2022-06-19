@@ -9,7 +9,8 @@ Note: You will need to have access to the account's username and password in ord
 ## Dependencies
 - selenium
 - webdriver_manager
-- dotenv
+- requests
+- os
 
 ## Plans
 - Setup yaml file for scheduled execution
